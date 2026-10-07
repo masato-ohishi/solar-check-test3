@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>候補案件精査ツール（初期検討簡易判定版）</title>
+<style>
+  :root{
+    --navy:#1f3b57;
+    --navy-dark:#16293c;
+    --orange:#e08a3c;
+    --orange-dark:#c8712a;
+    --bg:#f4f5f7;
+    --border:#e1e4e8;
+    --ok:#2e7d32;
+    --ng:#c62828;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+    background:var(--bg);
+    color:#2b2f36;
+  }
+  .container{ max-width:760px; margin:0 auto; padding:32px 20px 60px; }
+  h1{ font-size:20px; color:var(--navy); margin-bottom:6px; }
+  .lead{ font-size:13px; color:#5a6270; margin-bottom:18px; line-height:1.6; }
+  .warn{
+    background:#fff3cd; border:1px solid #ffe08a; color:#7a5c00;
+    font-size:12.5px; padding:10px 14px; border-radius:8px;
+    margin-bottom:22px; line-height:1.6;
+  }
+  .card{
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    padding:18px 20px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,0.04);
+  }
+  .step-header{
+    font-size:15px; font-weight:700; color:var(--navy);
+    display:flex; align-items:center; gap:8px; margin-bottom:12px;
+  }
+  .step-num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:20px;height:20px; background:var(--navy); color:#fff;
+    border-radius:50%; font-size:12px; flex-shrink:0;
+  }
+  label.field-label{ display:block; font-size:12px; color:#5a6270; margin-bottom:6px; }
+  input[type=text], input[type=number], select{
+    font-size:14px; padding:8px 10px; border:1px solid var(--border);
+    border-radius:6px; background:#fafbfc;
+  }
+  input[type=text]{ width:100%; }
+  .threshold-row{ display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:14px; flex-wrap:wrap; }
+  .th-label{ min-width:170px; color:#3a4150; }
+  .threshold-row select{ min-width:160px; }
+  .threshold-row input[type=number]{ width:90px; }
+  .radius-row{ display:flex; align-items:center; gap:8px; font-size:13px; color:#5a6270; margin-top:10px; flex-wrap:wrap; }
+  .radius-row input[type=number]{ width:100px; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; }
+  @media (max-width:520px){ .grid2{ grid-template-columns:1fr; } }
+  #run-btn{
+    display:block; width:100%; padding:12px; background:var(--orange);
+    color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:700;
+    cursor:pointer; margin:20px 0; transition:background .15s;
+  }
+  #run-btn:disabled{ background:#c9ccd2; cursor:not-allowed; }
+  #run-btn:hover:not(:disabled){ background:var(--orange-dark); }
+  .status{ font-size:13px; color:#5a6270; margin-bottom:14px; min-height:18px; line-height:1.6; }
+  .status.error{ color:var(--ng); font-weight:700; white-space:pre-wrap; }
+  .result-header{ display:flex; flex-direction:column; gap:4px; margin-bottom:14px; }
+  .result-header .address{ font-size:15px; font-weight:700; color:var(--navy); }
+  .result-header .latlng{ font-size:12px; color:#8a90a0; }
+  .badge{
+    align-self:flex-start; margin-top:6px; padding:6px 16px; border:none;
+    border-radius:20px; font-size:13px; font-weight:700; color:#fff; cursor:default;
+  }
+  .badge.pass{ background:var(--ng); }
+  .badge.fail{ background:#9aa1ad; }
+  .result-table{ width:100%; border-collapse:collapse; font-size:13px; margin-bottom:12px; }
+  .result-table th, .result-table td{ border:1px solid var(--border); padding:8px 10px; text-align:left; word-break:break-word; }
+  .result-table th{ background:#f0f2f5; color:#3a4150; font-weight:700; }
+  .result-table td.ok{ color:var(--ok); font-weight:700; }
+  .result-table td.ng{ color:var(--ng); font-weight:700; }
+  .result-table td.na{ color:#8a90a0; }
+  .result-table.small{ font-size:12px; }
+  .result-table.small th, .result-table.small td{ padding:5px 8px; }
+  .result-table a, .ev a{ color:var(--navy); font-weight:700; text-decoration:underline; }
+  .section-label{ font-size:12px; font-weight:700; color:#8a90a0; margin:14px 0 6px; }
+  .datasource{ font-size:11px; color:#8a90a0; line-height:1.6; border-top:1px dashed var(--border); padding-top:10px; }
+  .footnote{ font-size:11px; color:#9aa1ad; margin-top:24px; line-height:1.6; }
+  details.ev{ border:1px solid var(--border); border-radius:8px; padding:8px 12px; margin-bottom:10px; background:#fff; }
+  details.ev summary{ font-weight:700; cursor:pointer; color:var(--navy); font-size:13px; }
+  details.ev svg{ max-width:100%; height:auto; display:block; margin:10px 0; }
+  .caption{ font-size:11.5px; color:#5a6270; line-height:1.6; margin:4px 0 10px; }
+  .legend{ font-size:11.5px; color:#5a6270; display:flex; gap:14px; flex-wrap:wrap; margin-bottom:10px; }
+  .legend .dot{ display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  details.ev pre{ background:#f7f9fb; border:1px solid var(--border); border-radius:6px; padding:10px; font-size:11px; overflow:auto; max-height:320px; }
+  .spinner{
+    display:inline-block; width:14px; height:14px; border:2px solid #ddd;
+    border-top-color:var(--orange); border-radius:50%; animation:spin .8s linear infinite;
+    vertical-align:middle; margin-right:6px;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  #diagnostic-card .step-header{ color:var(--navy-dark); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>候補案件精査ツール（初期検討簡易判定版）</h1>
+  <p class="lead">住所を入れるだけで、海からの距離・地形（傾斜）の簡易判定・ハザードマップ確認リンクをまとめて取得し、判定の根拠となった取得データも併せて表示します。</p>
+
+  <div class="warn">
+    ※地形判定は、中心点＋周辺8方向の標高を取得し、その高低差から傾斜角を推定する<b>簡易評価（点サンプリング方式）</b>です。初期検討の一次フィルタとしてご利用ください。<br>
+    ※ハザード（積雪等）は自動判定に対応した簡易APIが無いため、<b>ハザードマップ確認リンク</b>から目視でご確認ください。<br>
+    ※通信できることを確認済みの経路（国土地理院API、overpass-api.de への直接アクセス）のみを使用しています。
+  </div>
+
+  <div class="card">
+    <div class="step-header"><span class="step-num">1</span> 対象住所を入力</div>
+    <label class="field-label">番地まで含めた住所を入力してください（例：大阪府大阪市浪速区恵美須東1丁目18-6）</label>
+    <input type="text" id="address" value="東京都港区海岸1-5-20">
+  </div>
+
+  <div class="card">
+    <div class="step-header"><span class="step-num">2</span> 海からの距離の閾値を設定</div>
+    <div class="threshold-row">
+      <span class="th-label">海からの距離</span>
+      <select id="op-sea">
+        <option value="以上離れていること">以上離れていること</option>
+        <option value="以下であること">以下であること</option>
+      </select>
+      <input type="number" id="val-sea" value="500">
+      <span>m</span>
+    </div>
+    <div class="radius-row">
+      Overpass検索半径: <input type="number" id="search-radius" value="5000"> m　※閾値より大きめに設定してください
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="step-header"><span class="step-num">3</span> 地形（傾斜）判定のパラメータ</div>
+    <p class="lead" style="margin-bottom:14px;">F1（急傾斜地）／F2・A1（特殊施工）／H1（造成）を、同じ標高サンプリング結果から一括判定します。</p>
+    <div class="grid2">
+      <div class="threshold-row">
+        <span class="th-label">サンプリング半径</span>
+        <input type="number" id="terrain-radius" value="30">
+        <span>m</span>
+      </div>
+      <div class="threshold-row">
+        <span class="th-label">急傾斜地の閾値（F1）</span>
+        <input type="number" id="th-f1" value="30">
+        <span>°以上</span>
+      </div>
+      <div class="threshold-row">
+        <span class="th-label">特殊施工の閾値（F2・A1）</span>
+        <input type="number" id="th-steep" value="20">
+        <span>°超</span>
+      </div>
+      <div class="threshold-row">
+        <span class="th-label">平坦とみなす上限（H1）</span>
+        <input type="number" id="th-flat" value="5">
+        <span>°未満</span>
+      </div>
+    </div>
+  </div>
+
+  <button id="run-btn">判定を実行する</button>
+  <div class="status" id="status"></div>
+
+  <div class="card result-card" id="result" style="display:none;"></div>
+
+  <p class="footnote">
+    使用API：住所検索は国土地理院ジオコーディングAPI、海岸線検索はOpenStreetMap Overpass API（overpass-api.de）、地形判定は国土地理院 標高API（9地点サンプリング）を利用しています。ハザードは重ねるハザードマップへの確認リンクを表示します（自動判定ではありません）。Google Maps Platformは使用していません。<br>
+    ※オープンデータを用いた簡易判定です。正式なリスク評価には現地調査・専門機関の知見での裏付けを推奨します。
+  </p>
+</div>
+
+<script>
+// ---- API接続診断ログ ----
+let diagnosticLog = [];
+function logDiagnostic(entry){ diagnosticLog.push(entry); }
+function renderDiagnostics(){
+  if (diagnosticLog.length === 0) return '';
+  return `
+    <div class="card" id="diagnostic-card">
+      <div class="step-header">🔍 API接続診断ログ（デバッグ用）</div>
+      <table class="result-table">
+        <thead><tr><th>API / 経路</th><th>状態</th><th>応答時間</th><th>詳細</th></tr></thead>
+        <tbody>
+          ${diagnosticLog.map(d => `
+            <tr>
+              <td>${escapeHtml(d.name)}</td>
+              <td class="${d.ok ? 'ok' : 'ng'}">${d.ok ? '成功' : '失敗'}</td>
+              <td>${d.timeMs != null ? d.timeMs + ' ms' : '-'}</td>
+              <td style="font-size:11px;">${escapeHtml(d.detail)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <p class="datasource">※「失敗」となっているAPIがある場合は、このログをIT部門にご提示ください。</p>
+    </div>
+  `;
+}
+
+function setStatus(msg, isError=false){
+  const el = document.getElementById('status');
+  el.innerHTML = msg;
+  el.className = 'status' + (isError ? ' error' : '');
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000){
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (e){
+    clearTimeout(timer);
+    if (e.name === 'AbortError') throw new Error(`タイムアウトしました（${Math.round(timeoutMs/1000)}秒）`);
+    throw e;
+  }
+}
+
+// ---- 座標計算ユーティリティ ----
+const EARTH_R = 6371000;
+function toLocalXY(lat, lon, originLat, originLon){
+  const dLat = (lat - originLat) * Math.PI/180;
+  const dLon = (lon - originLon) * Math.PI/180;
+  return { x: dLon * EARTH_R * Math.cos(originLat*Math.PI/180), y: dLat * EARTH_R };
+}
+function fromLocalXY(x, y, originLat, originLon){
+  const lat = originLat + (y / EARTH_R) * 180/Math.PI;
+  const lon = originLon + (x / (EARTH_R * Math.cos(originLat*Math.PI/180))) * 180/Math.PI;
+  return { lat, lon };
+}
+function offsetLatLon(lat, lon, distanceM, bearingDeg){
+  const bearing = bearingDeg * Math.PI/180;
+  const lat1 = lat * Math.PI/180;
+  const lon1 = lon * Math.PI/180;
+  const lat2 = Math.asin(Math.sin(lat1)*Math.cos(distanceM/EARTH_R) + Math.cos(lat1)*Math.sin(distanceM/EARTH_R)*Math.cos(bearing));
+  const lon2 = lon1 + Math.atan2(Math.sin(bearing)*Math.sin(distanceM/EARTH_R)*Math.cos(lat1), Math.cos(distanceM/EARTH_R)-Math.sin(lat1)*Math.sin(lat2));
+  return { lat: lat2*180/Math.PI, lon: lon2*180/Math.PI };
+}
+function closestPointOnSegment(px, py, ax, ay, bx, by){
+  const abx = bx-ax, aby = by-ay, apx = px-ax, apy = py-ay;
+  const l = abx*abx + aby*aby;
+  let t = l === 0 ? 0 : (apx*abx + apy*aby)/l;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + t*abx, cy = ay + t*aby;
+  return { x: cx, y: cy, d: Math.hypot(px-cx, py-cy) };
+}
+const gsiMapUrl = (lat, lon) => `https://maps.gsi.go.jp/#17/${lat.toFixed(6)}/${lon.toFixed(6)}/`;
+const osmMapUrl = (lat, lon) => `https://www.openstreetmap.org/?mlat=${lat.toFixed(6)}&mlon=${lon.toFixed(6)}#map=17/${lat.toFixed(6)}/${lon.toFixed(6)}`;
+
+// ---- ① 国土地理院 ジオコーディングAPI ----
+async function geocodeAddress(address){
+  const url = 'https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(address);
+  const t0 = performance.now();
+  try {
+    const res = await fetchWithTimeout(url, {}, 10000);
+    if (!res.ok) throw new Error(`HTTPエラー ${res.status}`);
+    const data = await res.json();
+    if (!data || data.length === 0) throw new Error('該当住所が見つかりませんでした');
+    const [lon, lat] = data[0].geometry.coordinates;
+    const candidates = data.slice(0, 5).map(d => ({
+      title: d.properties.title, lon: d.geometry.coordinates[0], lat: d.geometry.coordinates[1]
+    }));
+    logDiagnostic({name:'① 国土地理院 ジオコーディングAPI', ok:true, timeMs:Math.round(performance.now()-t0), detail:`取得成功：${data[0].properties.title}（緯度${lat.toFixed(6)}, 経度${lon.toFixed(6)}）／候補${data.length}件`});
+    return { lat, lon, title: data[0].properties.title, candidates, totalCandidates: data.length };
+  } catch (err){
+    logDiagnostic({name:'① 国土地理院 ジオコーディングAPI', ok:false, timeMs:Math.round(performance.now()-t0), detail: err.message});
+    throw new Error('住所検索に失敗しました：' + err.message);
+  }
+}
+
+// ---- ② 国土地理院 標高API（単点） ----
+async function getElevationRaw(lat, lon){
+  const url = `https://cyberjapandata2.gsi.go.jp/general/dem/scripts/getelevation.php?lon=${lon}&lat=${lat}&outtype=JSON`;
+  const res = await fetchWithTimeout(url, {}, 10000);
+  if (!res.ok) throw new Error(`HTTPエラー ${res.status}`);
+  const data = await res.json();
+  if (data.elevation === '-----' || data.elevation === null) throw new Error('データなし範囲');
+  return Number(data.elevation);
+}
+
+// ---- ③ Overpass API（overpass-api.de 直接アクセスのみ・最大2回試行） ----
+const OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_TIMEOUT_MS = 25000;
+const OVERPASS_MAX_ATTEMPTS = 2;
+
+async function findSeaDistance(lat, lon, radius, onProgress){
+  const query = `[out:json][timeout:25];way["natural"="coastline"](around:${radius},${lat},${lon});out geom;`;
+  const url = OVERPASS_ENDPOINT + '?data=' + encodeURIComponent(query);
+  let lastErr = null;
+
+  for (let attempt = 1; attempt <= OVERPASS_MAX_ATTEMPTS; attempt++){
+    const t0 = performance.now();
+    const label = `③ Overpass API（overpass-api.de / 直接アクセス、試行${attempt}/${OVERPASS_MAX_ATTEMPTS}）`;
+    try {
+      if (onProgress) onProgress(`海岸線データを取得中…（overpass-api.de、試行${attempt}/${OVERPASS_MAX_ATTEMPTS}）`);
+      const res = await fetchWithTimeout(url, {}, OVERPASS_TIMEOUT_MS);
+      const timeMs = Math.round(performance.now() - t0);
+      if (!res.ok) throw new Error(`HTTPエラー ${res.status}`);
+      const data = await res.json();
+
+      if (!data.elements || data.elements.length === 0){
+        logDiagnostic({name:label, ok:true, timeMs, detail:'接続成功（検索範囲内に海岸線データなし）'});
+        return { distance: null, note: `検索範囲(${radius}m)内に海岸線データが見つかりませんでした`, ways: [], wayCount: 0, nodeCount: 0, nearest: null, radius };
+      }
+
+      let minDist = Infinity, best = null, nodeCount = 0;
+      const ways = [];
+      for (const way of data.elements){
+        if (!way.geometry || way.geometry.length < 2) continue;
+        const pts = way.geometry.map(p => toLocalXY(p.lat, p.lon, lat, lon));
+        ways.push(pts);
+        nodeCount += pts.length;
+        for (let j = 0; j < pts.length - 1; j++){
+          const c = closestPointOnSegment(0, 0, pts[j].x, pts[j].y, pts[j+1].x, pts[j+1].y);
+          if (c.d < minDist){
+            minDist = c.d;
+            best = { x: c.x, y: c.y, a: way.geometry[j], b: way.geometry[j+1] };
+          }
+        }
+      }
+      if (!best){
+        logDiagnostic({name:label, ok:false, timeMs, detail:'海岸線の形状データを解析できませんでした'});
+        throw new Error('海岸線の形状データを解析できませんでした');
+      }
+      const ll = fromLocalXY(best.x, best.y, lat, lon);
+      logDiagnostic({name:label, ok:true, timeMs, detail:`接続成功（最短距離 約${Math.round(minDist)}m、海岸線${ways.length}本／${nodeCount}ノード）`});
+      return {
+        distance: Math.round(minDist), note: null, ways, wayCount: ways.length, nodeCount, radius,
+        nearest: { x: best.x, y: best.y, lat: ll.lat, lon: ll.lon, a: best.a, b: best.b }
+      };
+    } catch (err){
+      const timeMs = Math.round(performance.now() - t0);
+      if (!diagnosticLog.some(d => d.name === label)){
+        logDiagnostic({name:label, ok:false, timeMs, detail: err.message});
+      }
+      lastErr = err;
+    }
+  }
+  throw new Error(`海岸線データの取得に失敗しました（overpass-api.de、${OVERPASS_MAX_ATTEMPTS}回試行）：${lastErr ? lastErr.message : '不明'}`);
+}
+
+// ---- 地形（傾斜）簡易判定：標高API 9地点サンプリング ----
+async function sampleTerrainSlope(lat, lon, radius){
+  const directions = [
+    {deg:0, name:'北'}, {deg:45, name:'北東'}, {deg:90, name:'東'}, {deg:135, name:'南東'},
+    {deg:180, name:'南'}, {deg:225, name:'南西'}, {deg:270, name:'西'}, {deg:315, name:'北西'}
+  ];
+  const t0 = performance.now();
+
+  let centerElev;
+  try {
+    centerElev = await getElevationRaw(lat, lon);
+  } catch(err){
+    logDiagnostic({name:'② 国土地理院 標高API（地形サンプリング）', ok:false, timeMs:Math.round(performance.now()-t0), detail:'中心点の標高取得に失敗：'+err.message});
+    throw new Error('地形サンプリングに失敗しました（中心点の標高が取得できません）：' + err.message);
+  }
+
+  const points = await Promise.all(directions.map(async d => {
+    const p = offsetLatLon(lat, lon, radius, d.deg);
+    try {
+      const elev = await getElevationRaw(p.lat, p.lon);
+      return { ...d, lat: p.lat, lon: p.lon, elev, ok:true };
+    } catch(err){
+      return { ...d, lat: p.lat, lon: p.lon, ok:false, error: err.message };
+    }
+  }));
+  const timeMs = Math.round(performance.now()-t0);
+  const okPoints = points.filter(p => p.ok);
+  const failedPoints = points.filter(p => !p.ok);
+
+  if (failedPoints.length === 0){
+    logDiagnostic({name:'② 国土地理院 標高API（地形サンプリング、9地点）', ok:true, timeMs, detail:`中心点＋周辺8方向すべて取得成功（中心標高${centerElev}m）`});
+  } else if (okPoints.length > 0){
+    logDiagnostic({name:'② 国土地理院 標高API（地形サンプリング、9地点）', ok:true, timeMs, detail:`9地点中${okPoints.length + 1}地点で取得成功。失敗方向：${failedPoints.map(p=>p.name+'('+p.error+')').join('、')}`});
+  } else {
+    logDiagnostic({name:'② 国土地理院 標高API（地形サンプリング、9地点）', ok:false, timeMs, detail:`周辺8方向すべて取得失敗：${failedPoints[0].error}`});
+    throw new Error('周辺地点の標高がすべて取得できず、地形判定ができません：' + failedPoints[0].error);
+  }
+
+  points.forEach(p => {
+    if (p.ok){
+      p.diff = p.elev - centerElev;
+      p.angleDeg = Math.atan2(Math.abs(p.diff), radius) * 180 / Math.PI;
+    }
+  });
+  const slopes = points.filter(p => p.ok);
+  return {
+    centerElev, centerLat: lat, centerLon: lon, radius, points, slopes,
+    maxSlope: Math.max(...slopes.map(s => s.angleDeg)),
+    totalSamples: slopes.length
+  };
+}
+
+function judgeTerrainItems(terrain, th){
+  const steepList = terrain.slopes.filter(s => s.angleDeg > th.steep);
+  const steepCount = steepList.length;
+  const n = terrain.totalSamples;
+  const steepRatio = steepCount / n;
+  const pct = Math.round(steepRatio * 100);
+  const steepNames = steepList.length ? `（${steepList.map(s=>s.name).join('・')}）` : '';
+  const max = terrain.maxSlope.toFixed(1);
+  const rows = [];
+
+  const f1Hit = terrain.maxSlope >= th.f1;
+  rows.push({
+    id:'F1', label:'F1：急傾斜地（見送り基準）',
+    basis:`最大傾斜角が${th.f1}°未満であること`,
+    actual:`最大傾斜角 約${max}°`,
+    calc:`最大傾斜角 ${max}° ${f1Hit?'≥':'<'} ${th.f1}° → ${f1Hit?'見送り基準に該当':'該当なし'}`,
+    pass: !f1Hit
+  });
+
+  const f2Hit = steepRatio >= 0.5;
+  rows.push({
+    id:'F2', label:'F2：特殊施工（見送り基準）',
+    basis:`傾斜角${th.steep}°超の割合が1/2未満であること`,
+    actual:`${steepCount}/${n}方向が該当（${pct}%）`,
+    calc:`${th.steep}°超：${steepCount}/${n}方向${steepNames} = ${pct}% ${f2Hit?'≥':'<'} 50% → ${f2Hit?'見送り基準に該当':'該当なし'}`,
+    pass: !f2Hit
+  });
+
+  const a1Hit = steepRatio >= (1/3);
+  rows.push({
+    id:'A1', label:'A1：特殊施工（注意喚起基準）',
+    basis:`傾斜角${th.steep}°超の割合が1/3未満であること`,
+    actual:`${steepCount}/${n}方向が該当（${pct}%）`,
+    calc:`${th.steep}°超：${steepCount}/${n}方向${steepNames} = ${pct}% ${a1Hit?'≥':'<'} 33.3% → ${a1Hit?'注意喚起基準に該当':'該当なし'}`,
+    pass: !a1Hit
+  });
+
+  const h1Ok = terrain.maxSlope < th.flat;
+  rows.push({
+    id:'H1', label:'H1：造成（省コスト化項目）',
+    basis:`最大傾斜角が${th.flat}°未満（概ね平坦）であること`,
+    actual:`最大傾斜角 約${max}°`,
+    calc:`最大傾斜角 ${max}° ${h1Ok?'<':'≥'} ${th.flat}° → ${h1Ok?'概ね平坦（省コスト要素に該当）':'平坦とは言えない'}`,
+    pass: h1Ok
+  });
+
+  return { rows, f1Hit, f2Hit };
+}
+
+function buildHazardMapLink(lat, lon){
+  return `https://disaportal.gsi.go.jp/maps/index.html?ll=${lat},${lon}&z=16`;
+}
+
+function judgeCell(pass){
+  const cls = pass===true ? 'ok' : pass===false ? 'ng' : 'na';
+  const txt = pass===true ? '適合' : pass===false ? '不適合' : '判定不可';
+  return `<td class="${cls}">${txt}</td>`;
+}
+
+// =====================================================
+// 根拠図（APIで取得した座標データから描画するSVG。外部画像は使用しない）
+// =====================================================
+function niceScaleLength(maxMeters){
+  const cands = [10,20,50,100,200,500,1000,2000,5000,10000,20000];
+  let best = cands[0];
+  for (const c of cands){ if (c <= maxMeters) best = c; }
+  return best;
+}
+function fmtLen(m){ return m >= 1000 ? (m/1000) + 'km' : m + 'm'; }
+
+function renderSeaMap(sea, threshold){
+  const W = 560, H = 400, pad = 36;
+  const hasNearest = sea.distance !== null && sea.nearest;
+  const base = hasNearest ? Math.max(sea.distance, threshold) : Math.max(threshold, 200);
+  const ext = base * 1.4;
+  const scale = (Math.min(W, H)/2 - pad) / ext;
+  const cx = W/2, cy = H/2;
+  const px = x => cx + x*scale;
+  const py = y => cy - y*scale;
+  const limit = (W/2) / scale * 1.3;
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="対象地点と海岸線の位置関係図">`;
+  s += `<defs><clipPath id="clipSea"><rect x="0" y="0" width="${W}" height="${H}"/></clipPath></defs>`;
+  s += `<rect width="${W}" height="${H}" fill="#f7f9fb" stroke="#e1e4e8"/>`;
+  s += `<g clip-path="url(#clipSea)">`;
+
+  // 基準距離の円
+  s += `<circle cx="${cx}" cy="${cy}" r="${threshold*scale}" fill="none" stroke="#e08a3c" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+  s += `<text x="${cx}" y="${cy - threshold*scale - 5}" text-anchor="middle" font-size="11" fill="#c8712a" paint-order="stroke" stroke="#f7f9fb" stroke-width="3">基準 ${threshold}m</text>`;
+  // 検索半径の円（視野内に収まる場合のみ）
+  if (sea.radius && sea.radius*scale < W/2 - 4){
+    s += `<circle cx="${cx}" cy="${cy}" r="${sea.radius*scale}" fill="none" stroke="#9aa1ad" stroke-width="1" stroke-dasharray="2 4"/>`;
+    s += `<text x="${cx}" y="${cy + sea.radius*scale + 12}" text-anchor="middle" font-size="10" fill="#8a90a0">検索半径 ${sea.radius}m</text>`;
+  }
+
+  // 海岸線（視野付近のセグメントのみ描画）
+  for (const pts of sea.ways){
+    let d = '', lastEnd = -1;
+    for (let i = 0; i < pts.length - 1; i++){
+      const a = pts[i], b = pts[i+1];
+      const near = (Math.abs(a.x) <= limit && Math.abs(a.y) <= limit) || (Math.abs(b.x) <= limit && Math.abs(b.y) <= limit);
+      if (!near) continue;
+      if (lastEnd !== i) d += `M${px(a.x).toFixed(1)} ${py(a.y).toFixed(1)}`;
+      d += `L${px(b.x).toFixed(1)} ${py(b.y).toFixed(1)}`;
+      lastEnd = i + 1;
+    }
+    if (d) s += `<path d="${d}" fill="none" stroke="#1976d2" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+
+  // 最短距離の線と最近傍点
+  if (hasNearest){
+    const nx = px(sea.nearest.x), ny = py(sea.nearest.y);
+    s += `<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#c62828" stroke-width="2"/>`;
+    s += `<circle cx="${nx}" cy="${ny}" r="5" fill="#fff" stroke="#c62828" stroke-width="2"/>`;
+    const mx = (cx + nx)/2, my = (cy + ny)/2;
+    s += `<text x="${mx + 8}" y="${my - 6}" font-size="12" font-weight="700" fill="#c62828" paint-order="stroke" stroke="#f7f9fb" stroke-width="3">約${sea.distance}m</text>`;
+  } else {
+    s += `<text x="${cx}" y="${H - 50}" text-anchor="middle" font-size="12" fill="#5a6270">検索範囲内に海岸線データはありません</text>`;
+  }
+
+  // 対象地点
+  s += `<circle cx="${cx}" cy="${cy}" r="7" fill="#1f3b57" stroke="#fff" stroke-width="2"/>`;
+  s += `<text x="${cx + 11}" y="${cy + 16}" font-size="11" font-weight="700" fill="#1f3b57" paint-order="stroke" stroke="#f7f9fb" stroke-width="3">対象地点</text>`;
+  s += `</g>`;
+
+  // スケールバー・北矢印
+  const barM = niceScaleLength((W*0.3)/scale);
+  const barPx = barM * scale;
+  s += `<g transform="translate(16,${H-16})"><line x1="0" y1="0" x2="${barPx}" y2="0" stroke="#333" stroke-width="2"/><line x1="0" y1="-4" x2="0" y2="4" stroke="#333" stroke-width="2"/><line x1="${barPx}" y1="-4" x2="${barPx}" y2="4" stroke="#333" stroke-width="2"/><text x="${barPx + 6}" y="4" font-size="11" fill="#333">${fmtLen(barM)}</text></g>`;
+  s += `<g transform="translate(${W-28},40)"><polygon points="0,-16 6,0 -6,0" fill="#333"/><text y="14" text-anchor="middle" font-size="11" fill="#333">N</text></g>`;
+  s += `</svg>`;
+  return s;
+}
+
+function slopeColor(a, th){
+  if (a >= th.f1) return '#8e0000';
+  if (a > th.steep) return '#e53935';
+  if (a >= th.flat) return '#f9a825';
+  return '#2e7d32';
+}
+
+function renderTerrainMap(terrain, th){
+  const W = 560, H = 420, R = 140;
+  const cx = W/2, cy = H/2;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="標高サンプリング地点と傾斜角">`;
+  s += `<rect width="${W}" height="${H}" fill="#f7f9fb" stroke="#e1e4e8"/>`;
+  s += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#9aa1ad" stroke-width="1" stroke-dasharray="4 4"/>`;
+  s += `<text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="10" fill="#8a90a0">半径 ${terrain.radius}m</text>`;
+
+  for (const p of terrain.points){
+    const rad = p.deg * Math.PI/180;
+    const sx = Math.sin(rad), sy = Math.cos(rad);
+    const x = cx + R*sx, y = cy - R*sy;
+    const color = p.ok ? slopeColor(p.angleDeg, th) : '#9aa1ad';
+    s += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="${color}" stroke-width="3" ${p.ok ? '' : 'stroke-dasharray="4 4"'}/>`;
+    s += p.ok
+      ? `<circle cx="${x}" cy="${y}" r="7" fill="${color}" stroke="#fff" stroke-width="2"/>`
+      : `<circle cx="${x}" cy="${y}" r="7" fill="#fff" stroke="${color}" stroke-width="2"/>`;
+    const lx = cx + (R + 20)*sx, ly = cy - (R + 20)*sy;
+    const anchor = sx > 0.3 ? 'start' : sx < -0.3 ? 'end' : 'middle';
+    const dy = sy > 0.3 ? -8 : sy < -0.3 ? 8 : 0;
+    if (p.ok){
+      s += `<text x="${lx}" y="${ly + dy}" text-anchor="${anchor}" font-size="12" font-weight="700" fill="#2b2f36">${p.name} ${p.elev}m</text>`;
+      s += `<text x="${lx}" y="${ly + dy + 14}" text-anchor="${anchor}" font-size="11" fill="${color}" font-weight="700">傾斜 ${p.angleDeg.toFixed(1)}°</text>`;
+    } else {
+      s += `<text x="${lx}" y="${ly + dy}" text-anchor="${anchor}" font-size="12" fill="#8a90a0">${p.name} 取得失敗</text>`;
+    }
+  }
+  s += `<circle cx="${cx}" cy="${cy}" r="9" fill="#1f3b57" stroke="#fff" stroke-width="2"/>`;
+  s += `<text x="${cx + 13}" y="${cy - 10}" font-size="12" font-weight="700" fill="#1f3b57" paint-order="stroke" stroke="#f7f9fb" stroke-width="3">中心 ${terrain.centerElev}m</text>`;
+  s += `<g transform="translate(${W-28},36)"><polygon points="0,-16 6,0 -6,0" fill="#333"/><text y="14" text-anchor="middle" font-size="11" fill="#333">N</text></g>`;
+  s += `</svg>`;
+  return s;
+}
+
+// =====================================================
+// 根拠セクションのHTML生成
+// =====================================================
+function renderGeoEvidence(geo, address){
+  const rows = geo.candidates.map((c, i) => `<tr>
+    <td>${i === 0 ? '採用' : '候補' + (i+1)}</td>
+    <td>${escapeHtml(c.title)}</td>
+    <td>${c.lat.toFixed(6)}</td>
+    <td>${c.lon.toFixed(6)}</td>
+  </tr>`).join('');
+  return `<details class="ev" open>
+    <summary>① 住所の特定（国土地理院 ジオコーディングAPI）</summary>
+    <p class="caption">入力住所「${escapeHtml(address)}」に対し、APIが返した候補のうち先頭を採用しています（全${geo.totalCandidates}件中、上位${geo.candidates.length}件を表示）。候補の住所表記が意図と異なる場合は、入力住所を修正して再実行してください。</p>
+    <table class="result-table small">
+      <thead><tr><th>区分</th><th>APIが返した住所表記</th><th>緯度</th><th>経度</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="caption">地点の確認：<a href="${gsiMapUrl(geo.lat, geo.lon)}" target="_blank" rel="noopener">地理院地図で開く ↗</a>　／　<a href="${osmMapUrl(geo.lat, geo.lon)}" target="_blank" rel="noopener">OpenStreetMapで開く ↗</a></p>
+  </details>`;
+}
+
+function renderSeaEvidence(sea, geo, val, op, pass){
+  if (!sea){
+    return `<details class="ev" open><summary>② A5 海からの距離の根拠（OpenStreetMap 海岸線データ）</summary><p class="caption">海岸線データを取得できなかったため、根拠データはありません（診断ログをご確認ください）。</p></details>`;
+  }
+  const cmp = sea.distance !== null
+    ? `${sea.distance}m ${op.startsWith('以上') ? '≥' : '≤'} ${val}m → ${pass ? '基準を満たす（適合）' : '基準を満たさない（不適合）'}`
+    : `${escapeHtml(sea.note)}`;
+  const factRows = sea.distance !== null ? `
+      <tr><th>対象地点</th><td>緯度 ${geo.lat.toFixed(6)} / 経度 ${geo.lon.toFixed(6)}</td></tr>
+      <tr><th>最も近い海岸線上の点</th><td>緯度 ${sea.nearest.lat.toFixed(6)} / 経度 ${sea.nearest.lon.toFixed(6)}　<a href="${osmMapUrl(sea.nearest.lat, sea.nearest.lon)}" target="_blank" rel="noopener">OSMで開く ↗</a></td></tr>
+      <tr><th>最近傍の海岸線セグメント</th><td>(${sea.nearest.a.lat.toFixed(6)}, ${sea.nearest.a.lon.toFixed(6)}) ～ (${sea.nearest.b.lat.toFixed(6)}, ${sea.nearest.b.lon.toFixed(6)})</td></tr>
+      <tr><th>直線距離</th><td>約${sea.distance}m</td></tr>` : `
+      <tr><th>対象地点</th><td>緯度 ${geo.lat.toFixed(6)} / 経度 ${geo.lon.toFixed(6)}</td></tr>`;
+  return `<details class="ev" open>
+    <summary>② A5 海からの距離の根拠（OpenStreetMap 海岸線データ）</summary>
+    ${renderSeaMap(sea, val)}
+    <div class="legend">
+      <span><span class="dot" style="background:#1f3b57"></span>対象地点</span>
+      <span><span class="dot" style="background:#1976d2"></span>海岸線（OSM natural=coastline）</span>
+      <span><span class="dot" style="background:#c62828"></span>最短距離</span>
+      <span><span class="dot" style="background:#e08a3c"></span>基準距離の円</span>
+    </div>
+    <table class="result-table small"><tbody>
+      ${factRows}
+      <tr><th>取得した海岸線データ</th><td>検索半径${sea.radius}m内：海岸線${sea.wayCount}本／${sea.nodeCount}ノード</td></tr>
+      <tr><th>基準との比較</th><td>${cmp}</td></tr>
+    </tbody></table>
+    <p class="caption">図は取得した座標データを対象地点中心・真北上で描画した模式図です（背景地図はありません）。OSMの規約上、海岸線は進行方向の右手側が海です。データはボランティアによる入力のため、実際の位置と誤差がある場合があります。</p>
+  </details>`;
+}
+
+function renderTerrainEvidence(terrain, judged, th){
+  if (!terrain){
+    return `<details class="ev" open><summary>③ F1／F2／A1／H1 地形の根拠（国土地理院 標高API）</summary><p class="caption">標高を取得できなかったため、根拠データはありません（診断ログをご確認ください）。</p></details>`;
+  }
+  const centerRow = `<tr><td>中心（対象地点）</td><td>${terrain.centerLat.toFixed(6)}</td><td>${terrain.centerLon.toFixed(6)}</td><td>${terrain.centerElev}</td><td>－</td><td>－</td></tr>`;
+  const ptRows = terrain.points.map(p => p.ok ? `<tr>
+      <td>${p.name}（${terrain.radius}m先）</td><td>${p.lat.toFixed(6)}</td><td>${p.lon.toFixed(6)}</td>
+      <td>${p.elev}</td><td>${p.diff >= 0 ? '+' : ''}${p.diff.toFixed(1)}</td>
+      <td class="${p.angleDeg > th.steep ? 'ng' : ''}">${p.angleDeg.toFixed(1)}</td>
+    </tr>` : `<tr>
+      <td>${p.name}（${terrain.radius}m先）</td><td>${p.lat.toFixed(6)}</td><td>${p.lon.toFixed(6)}</td>
+      <td colspan="3" class="na">取得失敗：${escapeHtml(p.error)}</td>
+    </tr>`).join('');
+  const calcRows = judged.rows.map(r => `<tr>
+      <td>${escapeHtml(r.label)}</td><td>${escapeHtml(r.calc)}</td>${judgeCell(r.pass)}
+    </tr>`).join('');
+  return `<details class="ev" open>
+    <summary>③ F1／F2／A1／H1 地形の根拠（国土地理院 標高API）</summary>
+    ${renderTerrainMap(terrain, th)}
+    <div class="legend">
+      <span><span class="dot" style="background:#2e7d32"></span>平坦（${th.flat}°未満）</span>
+      <span><span class="dot" style="background:#f9a825"></span>${th.flat}°以上～${th.steep}°以下</span>
+      <span><span class="dot" style="background:#e53935"></span>${th.steep}°超</span>
+      <span><span class="dot" style="background:#8e0000"></span>${th.f1}°以上</span>
+      <span><span class="dot" style="background:#9aa1ad"></span>取得失敗</span>
+    </div>
+    <table class="result-table small">
+      <thead><tr><th>地点</th><th>緯度</th><th>経度</th><th>標高(m)</th><th>中心との高低差(m)</th><th>傾斜角(°)</th></tr></thead>
+      <tbody>${centerRow}${ptRows}</tbody>
+    </table>
+    <p class="caption">傾斜角 ＝ atan（中心との高低差の絶対値 ÷ サンプリング半径${terrain.radius}m）。</p>
+    <table class="result-table small">
+      <thead><tr><th>項目</th><th>判定式（数値入り）</th><th>判定</th></tr></thead>
+      <tbody>${calcRows}</tbody>
+    </table>
+    <p class="caption">中心と周辺8地点の標高差から推定した簡易評価です。敷地内の局所的な急斜面や、実際の設置エリア全体の傾斜分布は反映されません。</p>
+  </details>`;
+}
+
+function renderHazardEvidence(geo, hazardUrl){
+  return `<details class="ev">
+    <summary>④ 10 ハザード（自動判定なし・確認用リンク）</summary>
+    <p class="caption">自動判定に対応した簡易APIが無いため、対象地点（緯度 ${geo.lat.toFixed(6)} / 経度 ${geo.lon.toFixed(6)}）を指定した重ねるハザードマップを開き、目視でご確認ください。</p>
+    <p class="caption"><a href="${hazardUrl}" target="_blank" rel="noopener">重ねるハザードマップで確認 ↗</a></p>
+  </details>`;
+}
+
+function renderJsonEvidence(obj){
+  return `<details class="ev">
+    <summary>⑤ 取得データ（JSON・報告資料への転記用）</summary>
+    <pre>${escapeHtml(JSON.stringify(obj, null, 2))}</pre>
+  </details>`;
+}
+
+// =====================================================
+// メイン処理
+// =====================================================
+document.getElementById('run-btn').addEventListener('click', async () => {
+  const address = document.getElementById('address').value.trim();
+  if (!address){ alert('住所を入力してください'); return; }
+
+  const val = Number(document.getElementById('val-sea').value);
+  const radius = Number(document.getElementById('search-radius').value) || 5000;
+  const terrainRadius = Number(document.getElementById('terrain-radius').value) || 30;
+  const thF1 = Number(document.getElementById('th-f1').value);
+  const thSteep = Number(document.getElementById('th-steep').value);
+  const thFlat = Number(document.getElementById('th-flat').value);
+  if ([val, radius, terrainRadius, thF1, thSteep, thFlat].some(v => Number.isNaN(v))){
+    alert('数値項目はすべて数値で入力してください');
+    return;
+  }
+  const op = document.getElementById('op-sea').value;
+  const th = { f1: thF1, steep: thSteep, flat: thFlat };
+
+  diagnosticLog = [];
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  document.getElementById('result').style.display = 'none';
+  setStatus('<span class="spinner"></span>住所を検索しています…');
+
+  try {
+    const geo = await geocodeAddress(address);
+
+    // ---- 海からの距離（A5） ----
+    let seaRowHtml = '';
+    let seaPass = null;
+    let seaData = null;
+    try {
+      seaData = await findSeaDistance(geo.lat, geo.lon, radius, (msg) => setStatus('<span class="spinner"></span>' + msg));
+      let actual;
+      if (seaData.distance === null){
+        if (radius >= val){
+          seaPass = op.startsWith('以上');
+          actual = seaPass
+            ? `検索範囲(${radius}m)内に海岸線なし → ${radius}m以上離れていると推定（適合）`
+            : `検索範囲(${radius}m)内に海岸線なし → ${val}mを超えていると判定（不適合）`;
+        } else {
+          actual = `${seaData.note}（検索半径が閾値より小さいため自動判定できません）`;
+        }
+      } else {
+        seaPass = op.startsWith('以上') ? seaData.distance >= val : seaData.distance <= val;
+        const warn = seaData.distance > radius * 0.9 ? '（検索範囲付近のため誤差の可能性あり）' : '';
+        actual = `約${seaData.distance}m${warn}`;
+      }
+      seaRowHtml = `<tr>
+        <td>A5：海からの距離</td>
+        <td>${escapeHtml(val + 'm ' + op)}</td>
+        <td>${escapeHtml(actual)}</td>
+        ${judgeCell(seaPass)}
+      </tr>`;
+    } catch(err){
+      seaRowHtml = `<tr>
+        <td>A5：海からの距離</td>
+        <td>${escapeHtml(val + 'm ' + op)}</td>
+        <td>${escapeHtml('取得失敗：' + err.message)}</td>
+        ${judgeCell(null)}
+      </tr>`;
+    }
+
+    // ---- 地形（F1, F2, A1, H1） ----
+    setStatus('<span class="spinner"></span>地形データ（標高）を取得しています…');
+    let terrainRowsHtml = '';
+    let f1Hit = false, f2Hit = false;
+    let terrainData = null, judged = null;
+    try {
+      terrainData = await sampleTerrainSlope(geo.lat, geo.lon, terrainRadius);
+      judged = judgeTerrainItems(terrainData, th);
+      f1Hit = judged.f1Hit;
+      f2Hit = judged.f2Hit;
+      terrainRowsHtml = judged.rows.map(r => `<tr>
+        <td>${escapeHtml(r.label)}</td>
+        <td>${escapeHtml(r.basis)}</td>
+        <td>${escapeHtml(r.actual)}</td>
+        ${judgeCell(r.pass)}
+      </tr>`).join('');
+    } catch(err){
+      terrainRowsHtml = `<tr>
+        <td>F1/F2/A1/H1：地形判定</td>
+        <td>-</td>
+        <td>${escapeHtml('取得失敗：' + err.message)}</td>
+        ${judgeCell(null)}
+      </tr>`;
+    }
+
+    // ---- ハザード確認リンク（10） ----
+    const hazardUrl = buildHazardMapLink(geo.lat, geo.lon);
+    const hazardRowHtml = `<tr>
+      <td>10：ハザード（積雪等）</td>
+      <td>目視確認</td>
+      <td><a href="${hazardUrl}" target="_blank" rel="noopener">重ねるハザードマップで確認 ↗</a></td>
+      <td class="na">要確認</td>
+    </tr>`;
+
+    // ---- 取得データ（JSON） ----
+    const evidenceJson = {
+      取得日時: new Date().toISOString(),
+      入力住所: address,
+      住所検索: { 採用: { 住所: geo.title, 緯度: geo.lat, 経度: geo.lon }, 候補: geo.candidates },
+      海からの距離: seaData ? {
+        基準: `${val}m ${op}`, 検索半径m: radius, 判定: seaPass,
+        最短距離m: seaData.distance,
+        最近傍の海岸点: seaData.nearest ? { 緯度: seaData.nearest.lat, 経度: seaData.nearest.lon } : null,
+        取得海岸線: { 本数: seaData.wayCount, ノード数: seaData.nodeCount }
+      } : null,
+      地形: terrainData ? {
+        サンプリング半径m: terrainData.radius, 閾値: th, 中心標高m: terrainData.centerElev,
+        各地点: terrainData.points.map(p => p.ok
+          ? { 方位: p.name, 緯度: p.lat, 経度: p.lon, 標高m: p.elev, 高低差m: Number(p.diff.toFixed(2)), 傾斜角度: Number(p.angleDeg.toFixed(2)) }
+          : { 方位: p.name, 緯度: p.lat, 経度: p.lon, 取得失敗: p.error }),
+        最大傾斜角度: Number(terrainData.maxSlope.toFixed(2)),
+        判定: judged.rows.map(r => ({ 項目: r.id, 判定式: r.calc, 適合: r.pass }))
+      } : null
+    };
+
+    setStatus('');
+    const overallPass = seaPass !== false && !f1Hit && !f2Hit;
+    const el = document.getElementById('result');
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div class="result-header">
+        <div class="address">${escapeHtml(geo.title || address)}</div>
+        <div class="latlng">緯度 ${geo.lat.toFixed(6)} / 経度 ${geo.lon.toFixed(6)}</div>
+        <button class="badge ${overallPass ? 'pass':'fail'}">${overallPass ? '候補として検討' : '対象外／要確認'}</button>
+      </div>
+      <div class="section-label">■ 判定結果</div>
+      <table class="result-table">
+        <thead><tr><th>項目</th><th>基準</th><th>実績</th><th>判定</th></tr></thead>
+        <tbody>
+          ${seaRowHtml}
+          ${terrainRowsHtml}
+          ${hazardRowHtml}
+        </tbody>
+      </table>
+      <div class="section-label">■ 判定の根拠データ（APIで取得した情報）</div>
+      ${renderGeoEvidence(geo, address)}
+      ${renderSeaEvidence(seaData, geo, val, op, seaPass)}
+      ${renderTerrainEvidence(terrainData, judged, th)}
+      ${renderHazardEvidence(geo, hazardUrl)}
+      ${renderJsonEvidence(evidenceJson)}
+      <p class="datasource">
+        データソース：住所検索は国土地理院ジオコーディングAPI、海岸線検索はOpenStreetMap Overpass API（overpass-api.de）、地形判定は国土地理院 標高API（9地点サンプリング）を使用しています。<br>
+        ※オープンデータ・簡易評価のため誤差があります。正式なリスク評価には専門機関の知見・現地調査での裏付けを推奨します。
+      </p>
+    ` + renderDiagnostics();
+  } catch (err){
+    setStatus('エラー：' + err.message, true);
+    const el = document.getElementById('result');
+    el.style.display = 'block';
+    el.innerHTML = renderDiagnostics();
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
